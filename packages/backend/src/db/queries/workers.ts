@@ -7,16 +7,24 @@ interface WorkersQueryParams {
   to?: string;
 }
 
-function sanitize(value: string): string {
-  return value.replace(/'/g, "''");
-}
+const VALID_TEAMS = new Set(Array.from({ length: 24 }, (_, i) => `Team ${i + 1}`));
+const VALID_SHIFTS = new Set(["Shift 1", "Shift 2", "Shift 3"]);
+const DATE_PATTERN = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
 
 function buildWhereClause(params: WorkersQueryParams): string {
   const conditions: string[] = [];
-  if (params.team) conditions.push(`sub_team = '${sanitize(params.team)}'`);
-  if (params.shift) conditions.push(`sub_shift = '${sanitize(params.shift)}'`);
-  if (params.from) conditions.push(`event_date >= '${sanitize(params.from)}'`);
-  if (params.to) conditions.push(`event_date <= '${sanitize(params.to)}'`);
+  if (params.team && VALID_TEAMS.has(params.team)) {
+    conditions.push(`sub_team = '${params.team}'`);
+  }
+  if (params.shift && VALID_SHIFTS.has(params.shift)) {
+    conditions.push(`sub_shift = '${params.shift}'`);
+  }
+  if (params.from && DATE_PATTERN.test(params.from)) {
+    conditions.push(`event_date >= '${params.from}'`);
+  }
+  if (params.to && DATE_PATTERN.test(params.to)) {
+    conditions.push(`event_date <= '${params.to}'`);
+  }
   return conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 }
 

@@ -135,9 +135,9 @@ export async function query(sql: string): Promise<Record<string, unknown>[]> {
 }
 
 export async function getTableCounts() {
-  const [workers] = await query("SELECT COUNT(*) AS cnt FROM workers");
-  const [manufacturing] = await query("SELECT COUNT(*) AS cnt FROM manufacturing");
-  const [iot] = await query("SELECT COUNT(*) AS cnt FROM iot");
+  const [workers = { cnt: 0 }] = await query("SELECT COUNT(*) AS cnt FROM workers");
+  const [manufacturing = { cnt: 0 }] = await query("SELECT COUNT(*) AS cnt FROM manufacturing");
+  const [iot = { cnt: 0 }] = await query("SELECT COUNT(*) AS cnt FROM iot");
   return {
     workers: Number(workers.cnt),
     manufacturing: Number(manufacturing.cnt),

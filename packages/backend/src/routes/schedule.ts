@@ -40,14 +40,16 @@ schedule.get("/orders", async (c) => {
 });
 
 schedule.post("/assign", async (c) => {
-  const body = await c.req.json<{
-    orderId: string;
-    team: string;
-    shift: string;
-    machineId: string;
-    day: string;
-    weekStart: string;
-  }>();
+  let body: { orderId: string; team: string; shift: string; machineId: string; day: string; weekStart: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+
+  if (!body.orderId || !body.team || !body.shift || !body.machineId || !body.day || !body.weekStart) {
+    return c.json({ error: "Missing required fields: orderId, team, shift, machineId, day, weekStart" }, 400);
+  }
 
   const orders = getOrCreateOrders(body.weekStart);
 
@@ -105,10 +107,16 @@ schedule.post("/assign", async (c) => {
 });
 
 schedule.post("/unassign", async (c) => {
-  const body = await c.req.json<{
-    orderId: string;
-    weekStart: string;
-  }>();
+  let body: { orderId: string; weekStart: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+
+  if (!body.orderId || !body.weekStart) {
+    return c.json({ error: "Missing required fields: orderId, weekStart" }, 400);
+  }
 
   const orders = getOrCreateOrders(body.weekStart);
   const order = orders.find((o) => o.id === body.orderId);
