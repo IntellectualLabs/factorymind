@@ -120,8 +120,8 @@ export async function getMachinesTimeseries(params: {
     gran === "minute" ? "ts" : `DATE_TRUNC('${gran}', ts)`;
 
   let machineFilter = "";
-  if (params.machineId) {
-    machineFilter = `AND machine_id = '${params.machineId.replace(/'/g, "''")}'`;
+  if (params.machineId && /^[A-Za-z0-9_-]+$/.test(params.machineId)) {
+    machineFilter = `AND machine_id = '${params.machineId}'`;
   }
 
   const ALLOWED_SOURCES = ["manufacturing", "iot", "harmonized"] as const;

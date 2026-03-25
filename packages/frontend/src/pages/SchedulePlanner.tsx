@@ -138,7 +138,9 @@ function DayCell({
 
   const isEmpty = assignedOrders.length === 0;
   const totalCrewDemand = assignedOrders.reduce((sum, o) => sum + o.crewNeeded, 0);
-  const capacityRatio = predictedAvailable > 0 ? totalCrewDemand / predictedAvailable : 0;
+  const capacityRatio = predictedAvailable > 0
+    ? totalCrewDemand / predictedAvailable
+    : totalCrewDemand > 0 ? 2 : 0; // Treat 0 capacity with demand as overloaded
   const isOverloaded = capacityRatio > 1;
 
   return (
@@ -369,7 +371,8 @@ export default function SchedulePlanner() {
           setWarnings((prev) => [...prev, ...result.warnings]);
           setTimeout(() => setWarnings([]), 5000);
         }
-      } catch {
+      } catch (err) {
+      console.error("Schedule operation failed:", err);
         setWarnings((prev) => [
           ...prev,
           { type: "capacity_exceeded" as const, severity: "error" as const, message: "Failed to assign work order. Please try again." },
@@ -384,7 +387,8 @@ export default function SchedulePlanner() {
     async (orderId: string) => {
       try {
         await unassignMutation.mutateAsync({ orderId, weekStart });
-      } catch {
+      } catch (err) {
+      console.error("Schedule operation failed:", err);
         setWarnings((prev) => [
           ...prev,
           { type: "capacity_exceeded" as const, severity: "error" as const, message: "Failed to unassign. Please try again." },

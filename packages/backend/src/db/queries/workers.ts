@@ -11,7 +11,7 @@ const VALID_TEAMS = new Set(Array.from({ length: 24 }, (_, i) => `Team ${i + 1}`
 const VALID_SHIFTS = new Set(["Shift 1", "Shift 2", "Shift 3"]);
 const DATE_PATTERN = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
 
-function buildWhereClause(params: WorkersQueryParams): string {
+function buildConditions(params: WorkersQueryParams): string[] {
   const conditions: string[] = [];
   if (params.team && VALID_TEAMS.has(params.team)) {
     conditions.push(`sub_team = '${params.team}'`);
@@ -25,7 +25,12 @@ function buildWhereClause(params: WorkersQueryParams): string {
   if (params.to && DATE_PATTERN.test(params.to)) {
     conditions.push(`event_date <= '${params.to}'`);
   }
-  return conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  return conditions;
+}
+
+function buildWhereClause(params: WorkersQueryParams): string {
+  const conds = buildConditions(params);
+  return conds.length > 0 ? `WHERE ${conds.join(" AND ")}` : "";
 }
 
 export async function getWorkersSummary(params: WorkersQueryParams) {
@@ -199,12 +204,15 @@ export async function getWorkersAttrition(params: WorkersQueryParams) {
 
 // Gap 1: Efficacy accuracy — compare actual_efficacy_h vs recorded_efficacy
 export async function getWorkersEfficacyAccuracy(params: WorkersQueryParams) {
-  const where = buildWhereClause(params);
-  const baseFilter = `WHERE actual_efficacy_h IS NOT NULL AND actual_efficacy_h != 'None'
-    AND recorded_efficacy IS NOT NULL AND recorded_efficacy != 'None'`;
-  const fullWhere = where
-    ? baseFilter + " AND " + where.replace("WHERE ", "")
-    : baseFilter;
+  const extraConds = buildConditions(params);
+  const baseConds = [
+    "actual_efficacy_h IS NOT NULL",
+    "actual_efficacy_h != 'None'",
+    "recorded_efficacy IS NOT NULL",
+    "recorded_efficacy != 'None'",
+    ...extraConds,
+  ];
+  const fullWhere = `WHERE ${baseConds.join(" AND ")}`;
 
   const [summary] = await query(`
     SELECT
@@ -254,12 +262,15 @@ export async function getWorkersEfficacyAccuracy(params: WorkersQueryParams) {
 
 // Gap 2: Attrition cause breakdown
 export async function getWorkersAttritionCauses(params: WorkersQueryParams) {
-  const where = buildWhereClause(params);
-  const baseFilter = `WHERE behav_comptype_h IN ('Resignation', 'Termination')
-    AND behav_cause_h IS NOT NULL AND behav_cause_h != 'None' AND behav_cause_h != ''`;
-  const fullWhere = where
-    ? baseFilter + " AND " + where.replace("WHERE ", "")
-    : baseFilter;
+  const extraConds = buildConditions(params);
+  const baseConds = [
+    "behav_comptype_h IN ('Resignation', 'Termination')",
+    "behav_cause_h IS NOT NULL",
+    "behav_cause_h != 'None'",
+    "behav_cause_h != ''",
+    ...extraConds,
+  ];
+  const fullWhere = `WHERE ${baseConds.join(" AND ")}`;
 
   const rows = await query(`
     SELECT behav_cause_h AS cause, behav_comptype_h AS event_type, COUNT(*) AS count
