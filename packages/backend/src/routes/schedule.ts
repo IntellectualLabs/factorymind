@@ -104,4 +104,24 @@ schedule.post("/assign", async (c) => {
   return c.json({ success: true, warnings });
 });
 
+schedule.post("/unassign", async (c) => {
+  const body = await c.req.json<{
+    orderId: string;
+    weekStart: string;
+  }>();
+
+  const orders = getOrCreateOrders(body.weekStart);
+  const order = orders.find((o) => o.id === body.orderId);
+  if (!order) {
+    return c.json({ error: "Order not found" }, 404);
+  }
+
+  order.assignedTeam = null;
+  order.assignedShift = null;
+  order.assignedMachineId = null;
+  order.assignedDay = null;
+
+  return c.json({ success: true });
+});
+
 export default schedule;

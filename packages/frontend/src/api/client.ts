@@ -216,3 +216,16 @@ export function useAssignOrder() {
     },
   });
 }
+
+export function useUnassignOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { orderId: string; weekStart: string }) =>
+      postJson<{ success: boolean }>("/schedule/unassign", data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["schedule", "orders", variables.weekStart],
+      });
+    },
+  });
+}
