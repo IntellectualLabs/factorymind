@@ -4,9 +4,10 @@ dist/
 *.parquet
 data/processed/
 
-# Data files (large CSVs - download separately)
+# Data files (decompressed CSVs — regenerated from seed)
 data/*.csv
 Demo 2026 - Lovable for Industry/
+# Seed files ARE tracked (data/seed/*.csv.gz)
 
 # Playwright screenshots
 .playwright-mcp/

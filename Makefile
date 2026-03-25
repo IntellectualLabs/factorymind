@@ -1,7 +1,12 @@
-.PHONY: dev dev-backend dev-frontend build clean install
+.PHONY: dev dev-backend dev-frontend build clean install seed setup
+
+setup: install seed
 
 install:
 	pnpm install
+
+seed:
+	./scripts/seed.sh
 
 dev:
 	@echo "Starting backend and frontend..."
