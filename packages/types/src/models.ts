@@ -106,13 +106,52 @@ export interface TeamPrediction {
 
 export interface MachinePrediction {
   machineId: string;
+  machineType: string | null;
+  source: string;
   riskLevel: RiskLevel;
   maintenanceScore: number;
   recommendedLoad: "heavy" | "normal" | "light" | "avoid";
+  avgTemp: number;
+  avgVibration: number;
 }
 
 export interface ScheduleWarning {
   type: "low_attendance" | "maintenance_risk" | "capacity_exceeded";
   severity: "error" | "warning" | "info";
   message: string;
+}
+
+// ── Command Center Predictions ──
+
+export type AlertSeverity = "critical" | "warning" | "info";
+
+export interface PredictionAlert {
+  id: string;
+  severity: AlertSeverity;
+  source: "machine" | "attendance";
+  entity: string;
+  metric: number;
+  message: string;
+  day: string;
+}
+
+export interface PredictionSummary {
+  tomorrowAttendance: number;
+  attendanceConf: number;
+  machinesAtRisk: number;
+  workforceCapacity: number;
+  totalWorkers: number;
+  openActions: number;
+}
+
+export interface RecommendedAction {
+  id: string;
+  severity: AlertSeverity;
+  category: "maintenance" | "staffing" | "monitoring";
+  title: string;
+  description: string;
+  entity: string;
+  metric: number;
+  day: string;
+  navigateTo: string;
 }

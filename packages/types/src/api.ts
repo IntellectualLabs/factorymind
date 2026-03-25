@@ -4,6 +4,9 @@ import type {
   EventType,
   HarmonizedMachine,
   MachinePrediction,
+  PredictionAlert,
+  PredictionSummary,
+  RecommendedAction,
   RiskLevel,
   ScheduleWarning,
   TeamPrediction,
@@ -164,4 +167,12 @@ export interface AssignRequest {
 export interface AssignResponse {
   success: boolean;
   warnings: ScheduleWarning[];
+}
+
+// ── Predictions (Command Center) ──
+
+export interface PredictionsResponse {
+  alerts: PredictionAlert[];
+  summary: PredictionSummary;
+  actions: RecommendedAction[];
 }

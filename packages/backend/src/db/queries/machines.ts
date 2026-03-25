@@ -1,11 +1,6 @@
 import { query } from "../connection.js";
-import type { DataSource, RiskLevel } from "@factorymind/types";
-
-function riskLevel(score: number): RiskLevel {
-  if (score >= 0.7) return "high";
-  if (score >= 0.4) return "medium";
-  return "low";
-}
+import type { DataSource } from "@factorymind/types";
+import { riskLevel } from "./utils.js";
 
 export async function getMachinesSummary(source?: DataSource) {
   let table: string;

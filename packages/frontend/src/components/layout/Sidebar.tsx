@@ -1,11 +1,22 @@
 import { NavLink } from "react-router";
 import { cn } from "@/lib/utils";
-import { Users, Cpu, Calendar, Factory } from "lucide-react";
+import { Shield, Calendar, Users, Cpu, Factory } from "lucide-react";
 
-const navItems = [
-  { to: "/", icon: Users, label: "Workforce" },
-  { to: "/machines", icon: Cpu, label: "Machines" },
-  { to: "/scheduler", icon: Calendar, label: "Scheduler" },
+const navGroups = [
+  {
+    label: "Predictions",
+    items: [
+      { to: "/", icon: Shield, label: "Command Center" },
+      { to: "/scheduler", icon: Calendar, label: "Schedule Planner" },
+    ],
+  },
+  {
+    label: "Analytics",
+    items: [
+      { to: "/analytics/workforce", icon: Users, label: "Workforce" },
+      { to: "/analytics/machines", icon: Cpu, label: "Machines" },
+    ],
+  },
 ];
 
 export default function Sidebar() {
@@ -21,23 +32,33 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1">
-        {navItems.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-primary-600/20 text-primary-400"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
-              )
-            }
-          >
-            <Icon className="w-5 h-5" />
-            {label}
-          </NavLink>
+      <nav className="flex-1 p-4 space-y-4">
+        {navGroups.map((group) => (
+          <div key={group.label}>
+            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 mb-1">
+              {group.label}
+            </p>
+            <div className="space-y-1">
+              {group.items.map(({ to, icon: Icon, label }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={to === "/"}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-primary-600/20 text-primary-400"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                    )
+                  }
+                >
+                  <Icon className="w-5 h-5" />
+                  {label}
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 

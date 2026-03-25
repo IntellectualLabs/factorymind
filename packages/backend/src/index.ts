@@ -6,6 +6,7 @@ import health from "./routes/health.js";
 import workers from "./routes/workers.js";
 import machines from "./routes/machines.js";
 import schedule from "./routes/schedule.js";
+import predictions from "./routes/predictions.js";
 
 const app = new Hono();
 
@@ -20,6 +21,7 @@ app.route("/api/health", health);
 app.route("/api/workers", workers);
 app.route("/api/machines", machines);
 app.route("/api/schedule", schedule);
+app.route("/api/predictions", predictions);
 
 app.get("/", (c) => c.text("FactoryMind API"));
 

@@ -18,6 +18,7 @@ import type {
   ScheduleOrdersResponse,
   AssignRequest,
   AssignResponse,
+  PredictionsResponse,
   DataSource,
 } from "@factorymind/types";
 
@@ -269,5 +270,15 @@ export function useUnassignOrder() {
         queryKey: ["schedule", "orders", variables.weekStart],
       });
     },
+  });
+}
+
+// ── Predictions (Command Center) ──
+
+export function usePredictions() {
+  return useQuery({
+    queryKey: ["predictions"],
+    queryFn: () => fetchJson<PredictionsResponse>("/predictions"),
+    refetchInterval: 60_000,
   });
 }

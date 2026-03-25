@@ -1,21 +1,6 @@
 import { query } from "../connection.js";
-import type { RiskLevel, MachinePrediction, TeamPrediction } from "@factorymind/types";
-
-function riskLevel(score: number): RiskLevel {
-  if (score >= 0.7) return "high";
-  if (score >= 0.4) return "medium";
-  return "low";
-}
-
-function recommendedLoad(risk: RiskLevel): "heavy" | "normal" | "light" | "avoid" {
-  switch (risk) {
-    case "high": return "avoid";
-    case "medium": return "light";
-    case "low": return "heavy";
-  }
-}
-
-const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+import type { MachinePrediction, TeamPrediction } from "@factorymind/types";
+import { riskLevel, recommendedLoad, WEEKDAYS } from "./utils.js";
 
 export async function getAttendancePredictions(): Promise<
   Record<string, Record<string, { rate: number; stddev: number; totalWorkers: number }>>
@@ -76,7 +61,11 @@ export async function getMachineRiskPredictions(): Promise<MachinePrediction[]> 
   const rows = await query(`
     SELECT
       machine_id,
-      AVG(maintenance_risk) AS maintenance_score
+      ANY_VALUE(machine_type) AS machine_type,
+      ANY_VALUE(source) AS source,
+      AVG(maintenance_risk) AS maintenance_score,
+      AVG(temperature_raw) AS avg_temp,
+      AVG(vibration_raw) AS avg_vibration
     FROM machines_harmonized
     GROUP BY machine_id
     ORDER BY AVG(maintenance_risk) DESC
@@ -87,9 +76,13 @@ export async function getMachineRiskPredictions(): Promise<MachinePrediction[]> 
     const risk = riskLevel(score);
     return {
       machineId: String(r.machine_id),
+      machineType: r.machine_type ? String(r.machine_type) : null,
+      source: String(r.source || "manufacturing"),
       riskLevel: risk,
       maintenanceScore: Math.round(score * 1000) / 1000,
       recommendedLoad: recommendedLoad(risk),
+      avgTemp: Math.round(Number(r.avg_temp || 0) * 10) / 10,
+      avgVibration: Math.round(Number(r.avg_vibration || 0) * 100) / 100,
     };
   });
 }
