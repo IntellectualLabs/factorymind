@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "project": {
+    "name": "factorymind",
+    "defaultBranch": "main"
+  },
+  "branches": {
+    "feature": "feat/{issue}-{slug}",
+    "bugfix": "fix/{issue}-{slug}",
+    "chore": "chore/{issue}-{slug}"
+  },
+  "commits": {
+    "types": ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore"],
+    "scopeRequired": false,
+    "maxSubjectLength": 72
+  },
+  "quality": {
+    "commands": {}
+  },
+  "pr": {
+    "template": "default",
+    "requireChecks": true,
+    "requireApproval": true
+  },
+  "agentTeams": false,
+  "learning": {
+    "enabled": true,
+    "autoPropose": true
+  },
+  "lsp": {
+    "enabled": true,
+    "timeout": 5000,
+    "diagnosticsAsQuality": true
+  },
+  "tddMode": "suggest",
+  "autonomy": {
+    "tier1": ["read", "search", "lint", "test", "typecheck"],
+    "tier2": ["commit", "push", "branch"],
+    "tier3": ["merge", "release", "deploy"]
+  }
+}
