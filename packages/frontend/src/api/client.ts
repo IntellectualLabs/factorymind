@@ -5,10 +5,15 @@ import type {
   WorkersTimeseriesPoint,
   WorkersHeatmapCell,
   AttritionPoint,
+  EfficacyAccuracyResponse,
+  AttritionCauseEntry,
   MachinesSummaryResponse,
   MachineTimeseriesPoint,
   MachineRiskEntry,
   HarmonizedMachine,
+  EfficiencyDistributionEntry,
+  DowntimeLogEntry,
+  CorrelationsResponse,
   SchedulePredictionsResponse,
   ScheduleOrdersResponse,
   AssignRequest,
@@ -97,6 +102,26 @@ export function useWorkersAttrition(filters: WorkerFilters) {
   });
 }
 
+export function useWorkersEfficacyAccuracy(filters: WorkerFilters) {
+  return useQuery({
+    queryKey: ["workers", "efficacy-accuracy", filters],
+    queryFn: () =>
+      fetchJson<EfficacyAccuracyResponse>(
+        `/workers/efficacy-accuracy${buildQuery(filters)}`
+      ),
+  });
+}
+
+export function useWorkersAttritionCauses(filters: WorkerFilters) {
+  return useQuery({
+    queryKey: ["workers", "attrition-causes", filters],
+    queryFn: () =>
+      fetchJson<AttritionCauseEntry[]>(
+        `/workers/attrition-causes${buildQuery(filters)}`
+      ),
+  });
+}
+
 // ── Machines ──
 
 export interface MachineFilters {
@@ -133,6 +158,27 @@ export function useHarmonizedMachines() {
   return useQuery({
     queryKey: ["machines", "harmonized"],
     queryFn: () => fetchJson<HarmonizedMachine[]>("/machines/harmonized"),
+  });
+}
+
+export function useMachinesEfficiencyDistribution() {
+  return useQuery({
+    queryKey: ["machines", "efficiency-distribution"],
+    queryFn: () => fetchJson<EfficiencyDistributionEntry[]>("/machines/efficiency-distribution"),
+  });
+}
+
+export function useMachinesDowntimeLog() {
+  return useQuery({
+    queryKey: ["machines", "downtime-log"],
+    queryFn: () => fetchJson<DowntimeLogEntry[]>("/machines/downtime-log"),
+  });
+}
+
+export function useMachinesCorrelations() {
+  return useQuery({
+    queryKey: ["machines", "correlations"],
+    queryFn: () => fetchJson<CorrelationsResponse>("/machines/correlations"),
   });
 }
 

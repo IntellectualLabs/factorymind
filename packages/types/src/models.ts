@@ -98,6 +98,7 @@ export interface TeamPrediction {
   team: string;
   shift: string;
   predictedAttendance: number;
+  predictedEfficacy: number;
   confidence: number;
   totalWorkers: number;
   predictedAvailable: number;

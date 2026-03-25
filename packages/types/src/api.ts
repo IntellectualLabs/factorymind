@@ -50,6 +50,25 @@ export interface AttritionPoint {
   cumulative: number;
 }
 
+// ── Workers: Efficacy Accuracy (Gap 1) ──
+
+export interface EfficacyAccuracyResponse {
+  meanAbsError: number;
+  correlation: number;
+  avgActual: number;
+  avgRecorded: number;
+  sampleCount: number;
+  distribution: Array<{ bucket: string; count: number }>;
+}
+
+// ── Workers: Attrition Causes (Gap 2) ──
+
+export interface AttritionCauseEntry {
+  cause: string;
+  eventType: string;
+  count: number;
+}
+
 // ── Machines ──
 
 export interface MachinesSummaryResponse {
@@ -68,6 +87,46 @@ export interface MachineTimeseriesPoint {
   errorRate: number | null;
   networkLatency: number | null;
   packetLoss: number | null;
+  cycleTime: number | null;
+  pressure: number | null;
+  materialFlowRate: number | null;
+  downtimeMinutes: number | null;
+  efficiencyScore: number | null;
+}
+
+// ── Machines: Efficiency Distribution (Gap 4) ──
+
+export interface EfficiencyDistributionEntry {
+  status: string;
+  machineCount: number;
+  avgMaintenance: number;
+  avgDefectRate: number;
+  avgEfficiencyScore: number;
+}
+
+// ── Machines: Downtime Log (Gap 6) ──
+
+export interface DowntimeLogEntry {
+  machineId: string;
+  machineType: string | null;
+  timestamp: string;
+  downtimeMinutes: number;
+  maintenanceFlag: number;
+  efficiencyScore: number;
+  vibration: number;
+  temperature: number;
+}
+
+// ── Machines: Correlations (Gap 7) ──
+
+export interface CorrelationPair {
+  x: string;
+  y: string;
+  value: number;
+}
+
+export interface CorrelationsResponse {
+  pairs: CorrelationPair[];
 }
 
 export interface MachineRiskEntry {

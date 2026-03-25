@@ -32,7 +32,9 @@ export async function getAttendancePredictions(): Promise<
         event_weekday_num,
         parsed_date,
         COUNT(*) FILTER (WHERE behav_comptype_h = 'Absence') AS absences,
-        COUNT(DISTINCT sub_ID) AS total_workers
+        COUNT(DISTINCT sub_ID) AS total_workers,
+        AVG(CASE WHEN recorded_efficacy IS NOT NULL AND recorded_efficacy != 'None'
+            THEN TRY_CAST(recorded_efficacy AS DOUBLE) END) AS avg_efficacy
       FROM parsed
       GROUP BY sub_team, event_weekday_num, parsed_date
     )
@@ -41,7 +43,8 @@ export async function getAttendancePredictions(): Promise<
       event_weekday_num AS weekday_num,
       AVG(CAST(absences AS DOUBLE) / NULLIF(total_workers, 0)) AS avg_absence_rate,
       COALESCE(STDDEV(CAST(absences AS DOUBLE) / NULLIF(total_workers, 0)), 0.05) AS stddev_absence_rate,
-      AVG(total_workers) AS avg_total_workers
+      AVG(total_workers) AS avg_total_workers,
+      AVG(avg_efficacy) AS avg_efficacy
     FROM daily
     WHERE parsed_date >= (SELECT MAX(parsed_date) - INTERVAL 56 DAY FROM daily)
     GROUP BY sub_team, event_weekday_num
@@ -50,7 +53,7 @@ export async function getAttendancePredictions(): Promise<
 
   const predictions: Record<
     string,
-    Record<string, { rate: number; stddev: number; totalWorkers: number }>
+    Record<string, { rate: number; stddev: number; totalWorkers: number; efficacy: number }>
   > = {};
 
   for (const row of rows) {
@@ -62,6 +65,7 @@ export async function getAttendancePredictions(): Promise<
       rate: 1 - Number(row.avg_absence_rate),
       stddev: Number(row.stddev_absence_rate),
       totalWorkers: Math.round(Number(row.avg_total_workers)),
+      efficacy: Math.round(Number(row.avg_efficacy || 0.7) * 1000) / 1000,
     };
   }
 
@@ -92,7 +96,7 @@ export async function getMachineRiskPredictions(): Promise<MachinePrediction[]> 
 
 export function generateWeekPredictions(
   weekStart: string,
-  attendancePreds: Record<string, Record<string, { rate: number; stddev: number; totalWorkers: number }>>,
+  attendancePreds: Record<string, Record<string, { rate: number; stddev: number; totalWorkers: number; efficacy: number }>>,
   machinePreds: MachinePrediction[]
 ) {
   const startDate = new Date(weekStart);
@@ -111,7 +115,7 @@ export function generateWeekPredictions(
 
     const teams: TeamPrediction[] = [];
     for (const [team, byWeekday] of Object.entries(attendancePreds)) {
-      const pred = byWeekday[weekday] || { rate: 0.85, stddev: 0.05, totalWorkers: 20 };
+      const pred = byWeekday[weekday] || { rate: 0.85, stddev: 0.05, totalWorkers: 20, efficacy: 0.7 };
       const available = Math.round(pred.totalWorkers * pred.rate);
 
       // Infer shift from team name or use all 3 shifts
@@ -124,6 +128,7 @@ export function generateWeekPredictions(
           confidence: Math.max(0, Math.round((1 - pred.stddev * 1.5) * 1000) / 1000),
           totalWorkers: pred.totalWorkers,
           predictedAvailable: available,
+          predictedEfficacy: pred.efficacy,
         });
       }
     }

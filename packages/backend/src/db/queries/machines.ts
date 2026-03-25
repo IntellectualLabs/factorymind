@@ -139,7 +139,12 @@ export async function getMachinesTimeseries(params: {
       AVG(power_raw) AS power,
       AVG(error_rate_pct) AS "errorRate",
       AVG(network_latency) AS "networkLatency",
-      AVG(packet_loss) AS "packetLoss"
+      AVG(packet_loss) AS "packetLoss",
+      AVG(cycle_time) AS "cycleTime",
+      AVG(pressure) AS pressure,
+      AVG(material_flow_rate) AS "materialFlowRate",
+      AVG(CAST(downtime_minutes AS DOUBLE)) AS "downtimeMinutes",
+      AVG(efficiency_score) AS "efficiencyScore"
     FROM machines_harmonized
     WHERE 1=1 ${sourceFilter} ${machineFilter}
     GROUP BY ${truncExpr}, machine_id
@@ -157,7 +162,91 @@ export async function getMachinesTimeseries(params: {
     networkLatency:
       r.networkLatency != null ? Number(r.networkLatency) : null,
     packetLoss: r.packetLoss != null ? Number(r.packetLoss) : null,
+    cycleTime: r.cycleTime != null ? Number(r.cycleTime) : null,
+    pressure: r.pressure != null ? Number(r.pressure) : null,
+    materialFlowRate: r.materialFlowRate != null ? Number(r.materialFlowRate) : null,
+    downtimeMinutes: r.downtimeMinutes != null ? Number(r.downtimeMinutes) : null,
+    efficiencyScore: r.efficiencyScore != null ? Number(r.efficiencyScore) : null,
   }));
+}
+
+// Gap 4: Efficiency distribution with relationship to maintenance/defects
+export async function getMachinesEfficiencyDistribution() {
+  const rows = await query(`
+    WITH per_machine AS (
+      SELECT machine_id, MODE(efficiency_status) AS status,
+        AVG(maintenance_risk) AS avg_maint, AVG(defect_rate) AS avg_defect,
+        AVG(efficiency_score) AS avg_eff
+      FROM machines_harmonized GROUP BY machine_id
+    )
+    SELECT status, COUNT(*) AS machine_count,
+      AVG(avg_maint) AS avg_maintenance, AVG(avg_defect) AS avg_defect_rate,
+      AVG(avg_eff) AS avg_efficiency_score
+    FROM per_machine GROUP BY status ORDER BY AVG(avg_eff) DESC
+  `);
+  return rows.map((r) => ({
+    status: String(r.status),
+    machineCount: Number(r.machine_count),
+    avgMaintenance: Math.round(Number(r.avg_maintenance || 0) * 1000) / 1000,
+    avgDefectRate: Math.round(Number(r.avg_defect_rate || 0) * 100) / 100,
+    avgEfficiencyScore: Math.round(Number(r.avg_efficiency_score || 0) * 10) / 10,
+  }));
+}
+
+// Gap 6: Downtime alert log
+export async function getMachinesDowntimeLog() {
+  const rows = await query(`
+    SELECT machine_id, machine_type, CAST(ts AS VARCHAR) AS timestamp,
+      downtime_minutes, maintenance_flag, efficiency_score,
+      vibration_raw AS vibration, temperature_raw AS temperature
+    FROM machines_harmonized
+    WHERE (downtime_minutes > 0 OR maintenance_flag = 1) AND source = 'iot'
+    ORDER BY ts DESC LIMIT 100
+  `);
+  return rows.map((r) => ({
+    machineId: String(r.machine_id),
+    machineType: r.machine_type ? String(r.machine_type) : null,
+    timestamp: String(r.timestamp),
+    downtimeMinutes: Number(r.downtime_minutes || 0),
+    maintenanceFlag: Number(r.maintenance_flag),
+    efficiencyScore: Math.round(Number(r.efficiency_score || 0) * 10) / 10,
+    vibration: Math.round(Number(r.vibration || 0) * 100) / 100,
+    temperature: Math.round(Number(r.temperature || 0) * 10) / 10,
+  }));
+}
+
+// Gap 7: Correlation analysis between 6G network and operational metrics
+export async function getMachinesCorrelations() {
+  const [row] = await query(`
+    SELECT
+      CORR(network_latency, error_rate_pct) AS latency_vs_error,
+      CORR(network_latency, efficiency_score) AS latency_vs_efficiency,
+      CORR(network_latency, production_speed) AS latency_vs_speed,
+      CORR(packet_loss, error_rate_pct) AS packetloss_vs_error,
+      CORR(packet_loss, efficiency_score) AS packetloss_vs_efficiency,
+      CORR(packet_loss, defect_rate) AS packetloss_vs_defect,
+      CORR(maintenance_risk, error_rate_pct) AS maintenance_vs_error,
+      CORR(maintenance_risk, efficiency_score) AS maintenance_vs_efficiency,
+      CORR(vibration_raw, maintenance_risk) AS vibration_vs_maintenance,
+      CORR(temperature_raw, maintenance_risk) AS temp_vs_maintenance
+    FROM machines_harmonized
+    WHERE network_latency IS NOT NULL
+  `);
+  const round = (v: unknown) => v != null ? Math.round(Number(v) * 1000) / 1000 : 0;
+  return {
+    pairs: [
+      { x: "Latency", y: "Error Rate", value: round(row.latency_vs_error) },
+      { x: "Latency", y: "Efficiency", value: round(row.latency_vs_efficiency) },
+      { x: "Latency", y: "Prod Speed", value: round(row.latency_vs_speed) },
+      { x: "Pkt Loss", y: "Error Rate", value: round(row.packetloss_vs_error) },
+      { x: "Pkt Loss", y: "Efficiency", value: round(row.packetloss_vs_efficiency) },
+      { x: "Pkt Loss", y: "Defect Rate", value: round(row.packetloss_vs_defect) },
+      { x: "Maint Risk", y: "Error Rate", value: round(row.maintenance_vs_error) },
+      { x: "Maint Risk", y: "Efficiency", value: round(row.maintenance_vs_efficiency) },
+      { x: "Vibration", y: "Maint Risk", value: round(row.vibration_vs_maintenance) },
+      { x: "Temperature", y: "Maint Risk", value: round(row.temp_vs_maintenance) },
+    ],
+  };
 }
 
 export async function getMachinesRisk() {

@@ -4,6 +4,8 @@ import {
   getWorkersTimeseries,
   getWorkersHeatmap,
   getWorkersAttrition,
+  getWorkersEfficacyAccuracy,
+  getWorkersAttritionCauses,
 } from "../db/queries/workers.js";
 
 const workers = new Hono();
@@ -29,6 +31,18 @@ workers.get("/heatmap", async (c) => {
 workers.get("/attrition", async (c) => {
   const { from, to } = c.req.query();
   const result = await getWorkersAttrition({ from, to });
+  return c.json(result);
+});
+
+workers.get("/efficacy-accuracy", async (c) => {
+  const { team, shift, from, to } = c.req.query();
+  const result = await getWorkersEfficacyAccuracy({ team, shift, from, to });
+  return c.json(result);
+});
+
+workers.get("/attrition-causes", async (c) => {
+  const { team, shift, from, to } = c.req.query();
+  const result = await getWorkersAttritionCauses({ team, shift, from, to });
   return c.json(result);
 });
 

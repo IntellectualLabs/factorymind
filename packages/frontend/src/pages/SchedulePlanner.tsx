@@ -14,7 +14,8 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import type { WorkOrder, ScheduleWarning } from "@factorymind/types";
+import type { WorkOrder, ScheduleWarning, MachinePrediction } from "@factorymind/types";
+import MachineSelectModal from "@/components/schedule/MachineSelectModal";
 import { AlertTriangle, GripVertical, X } from "lucide-react";
 
 function getWeekStart(): string {
@@ -71,6 +72,7 @@ function DayCell({
   team,
   shift,
   attendance,
+  efficacy,
   assignedOrders,
 }: {
   day: string;
@@ -78,6 +80,7 @@ function DayCell({
   team: string;
   shift: string;
   attendance: number;
+  efficacy: number;
   assignedOrders: WorkOrder[];
 }) {
   const dropId = `${day}-${team}-${shift}`;
@@ -99,18 +102,23 @@ function DayCell({
     >
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-slate-400 font-medium">{weekday.slice(0, 3)}</span>
-        <span
-          className={cn(
-            "text-[10px] font-medium px-1.5 py-0.5 rounded",
-            attendance >= 0.85
-              ? "bg-emerald-500/20 text-emerald-400"
-              : attendance >= 0.7
-                ? "bg-amber-500/20 text-amber-400"
-                : "bg-red-500/20 text-red-400"
-          )}
-        >
-          {formatPercent(attendance)}
-        </span>
+        <div className="flex gap-1">
+          <span
+            className={cn(
+              "text-[10px] font-medium px-1.5 py-0.5 rounded",
+              attendance >= 0.85
+                ? "bg-emerald-500/20 text-emerald-400"
+                : attendance >= 0.7
+                  ? "bg-amber-500/20 text-amber-400"
+                  : "bg-red-500/20 text-red-400"
+            )}
+          >
+            {formatPercent(attendance)}
+          </span>
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
+            Eff: {formatPercent(efficacy)}
+          </span>
+        </div>
       </div>
       {assignedOrders.map((o) => (
         <div
@@ -140,12 +148,21 @@ function DayCell({
 
 // ── Main Scheduler ──
 
+interface PendingAssignment {
+  orderId: string;
+  orderType: string;
+  day: string;
+  team: string;
+  shift: string;
+}
+
 export default function SchedulePlanner() {
   const [weekStart] = useState(getWeekStart);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<ScheduleWarning[]>([]);
   const [selectedTeam, setSelectedTeam] = useState("Team 1");
   const [selectedShift, setSelectedShift] = useState("Shift 1");
+  const [pendingAssignment, setPendingAssignment] = useState<PendingAssignment | null>(null);
 
   const { data: predictions, isLoading: predsLoading } = useSchedulePredictions(weekStart);
   const { data: ordersData, isLoading: ordersLoading } = useScheduleOrders(weekStart);
@@ -160,7 +177,7 @@ export default function SchedulePlanner() {
   }, []);
 
   const handleDragEnd = useCallback(
-    async (event: DragEndEvent) => {
+    (event: DragEndEvent) => {
       setActiveId(null);
       const { active, over } = event;
       if (!over) return;
@@ -168,16 +185,31 @@ export default function SchedulePlanner() {
       const dropData = over.data.current as { day: string; team: string; shift: string } | undefined;
       if (!dropData) return;
 
+      const order = orders.find((o) => o.id === String(active.id));
+      setPendingAssignment({
+        orderId: String(active.id),
+        orderType: order?.machineType || "General",
+        day: dropData.day,
+        team: dropData.team,
+        shift: dropData.shift,
+      });
+    },
+    [orders]
+  );
+
+  const handleMachineSelect = useCallback(
+    async (machineId: string) => {
+      if (!pendingAssignment) return;
+      setPendingAssignment(null);
       try {
         const result = await assignMutation.mutateAsync({
-          orderId: String(active.id),
-          team: dropData.team,
-          shift: dropData.shift,
-          machineId: "auto",
-          day: dropData.day,
+          orderId: pendingAssignment.orderId,
+          team: pendingAssignment.team,
+          shift: pendingAssignment.shift,
+          machineId,
+          day: pendingAssignment.day,
           weekStart,
         });
-
         if (result.warnings.length > 0) {
           setWarnings((prev) => [...prev, ...result.warnings]);
           setTimeout(() => setWarnings([]), 5000);
@@ -190,7 +222,7 @@ export default function SchedulePlanner() {
         setTimeout(() => setWarnings([]), 5000);
       }
     },
-    [assignMutation, weekStart]
+    [pendingAssignment, assignMutation, weekStart]
   );
 
   if (predsLoading || ordersLoading) {
@@ -198,6 +230,7 @@ export default function SchedulePlanner() {
   }
 
   const days = predictions?.days || [];
+  const machinePreds: MachinePrediction[] = days[0]?.machines || [];
   const teams = ["Team 1", "Team 2", "Team 3", "Team 4", "Team 5", "Team 6"];
 
   return (
@@ -310,6 +343,7 @@ export default function SchedulePlanner() {
                     team={selectedTeam}
                     shift={selectedShift}
                     attendance={teamPred?.predictedAttendance || 0.85}
+                    efficacy={teamPred?.predictedEfficacy || 0.7}
                     assignedOrders={dayOrders}
                   />
                 );
@@ -352,6 +386,16 @@ export default function SchedulePlanner() {
           </div>
         ) : null}
       </DragOverlay>
+
+      {/* Machine Selection Modal (Gap 9) */}
+      {pendingAssignment && (
+        <MachineSelectModal
+          machines={machinePreds}
+          orderType={pendingAssignment.orderType}
+          onSelect={handleMachineSelect}
+          onCancel={() => setPendingAssignment(null)}
+        />
+      )}
     </DndContext>
   );
 }

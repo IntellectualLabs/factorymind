@@ -5,15 +5,20 @@ import {
   useMachinesTimeseries,
   useMachinesRisk,
   useHarmonizedMachines,
+  useMachinesEfficiencyDistribution,
+  useMachinesDowntimeLog,
+  useMachinesCorrelations,
 } from "@/api/client";
 import MetricCard from "@/components/shared/MetricCard";
 import LoadingState from "@/components/shared/LoadingState";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart";
+import BarChart from "@/components/charts/BarChart";
+import CorrelationHeatmap from "@/components/charts/CorrelationHeatmap";
 import DataTable from "@/components/tables/DataTable";
 import { Cpu, Activity, AlertTriangle, Gauge } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { HarmonizedMachine, MachineRiskEntry } from "@factorymind/types";
+import type { HarmonizedMachine, MachineRiskEntry, DowntimeLogEntry } from "@factorymind/types";
 
 const SOURCES: { label: string; value: DataSource }[] = [
   { label: "Manufacturing", value: "manufacturing" },
@@ -101,6 +106,49 @@ const harmonizedColumns: ColumnDef<HarmonizedMachine, unknown>[] = [
   },
 ];
 
+const downtimeColumns: ColumnDef<DowntimeLogEntry, unknown>[] = [
+  { accessorKey: "machineId", header: "Machine" },
+  { accessorKey: "machineType", header: "Type" },
+  {
+    accessorKey: "timestamp",
+    header: "Time",
+    cell: ({ getValue }) => {
+      const ts = getValue() as string;
+      return ts.includes(" ") ? ts.split(" ")[1]?.slice(0, 5) : ts.slice(11, 16);
+    },
+  },
+  {
+    accessorKey: "downtimeMinutes",
+    header: "Downtime (min)",
+    cell: ({ getValue }) => {
+      const v = getValue() as number;
+      return v > 0 ? <span className="text-red-400 font-medium">{v}</span> : "0";
+    },
+  },
+  {
+    accessorKey: "maintenanceFlag",
+    header: "Maint. Flag",
+    cell: ({ getValue }) => {
+      const v = getValue() as number;
+      return v === 1 ? (
+        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-400">ALERT</span>
+      ) : (
+        <span className="text-slate-500">-</span>
+      );
+    },
+  },
+  {
+    accessorKey: "efficiencyScore",
+    header: "Efficiency",
+    cell: ({ getValue }) => (getValue() as number).toFixed(1),
+  },
+  {
+    accessorKey: "vibration",
+    header: "Vibration",
+    cell: ({ getValue }) => (getValue() as number).toFixed(2),
+  },
+];
+
 export default function MachineDashboard() {
   const [source, setSource] = useState<DataSource>("harmonized");
   const [selectedMachine, setSelectedMachine] = useState<string>("");
@@ -113,6 +161,9 @@ export default function MachineDashboard() {
   });
   const { data: riskData } = useMachinesRisk();
   const { data: harmonized } = useHarmonizedMachines();
+  const { data: efficiencyDist } = useMachinesEfficiencyDistribution();
+  const { data: downtimeLog } = useMachinesDowntimeLog();
+  const { data: correlations } = useMachinesCorrelations();
 
   // Get unique machine IDs from risk data for the filter
   const machineIds = useMemo(() => {
@@ -278,6 +329,57 @@ export default function MachineDashboard() {
         )}
       </div>
 
+      {/* Gap 3: 6G Network Performance (manufacturing only) */}
+      {source !== "iot" && formattedTimeseries.length > 0 && (
+        <TimeSeriesChart
+          data={formattedTimeseries}
+          xKey="timestamp"
+          yKeys={["networkLatency", "packetLoss"]}
+          title="6G Network Performance"
+          height={280}
+        />
+      )}
+
+      {/* Gap 4: Efficiency Distribution */}
+      {efficiencyDist && efficiencyDist.length > 0 && (
+        <BarChart
+          data={efficiencyDist}
+          xKey="status"
+          yKeys={["avgMaintenance", "avgDefectRate"]}
+          title="Efficiency Status vs Maintenance & Defect Rate"
+          height={260}
+        />
+      )}
+
+      {/* Gap 5: IoT-Specific Production Metrics */}
+      {source === "iot" && formattedTimeseries.length > 0 && (
+        <>
+          <TimeSeriesChart
+            data={formattedTimeseries}
+            xKey="timestamp"
+            yKeys={["cycleTime", "pressure", "materialFlowRate"]}
+            title="IoT Production Metrics"
+            height={300}
+          />
+          <TimeSeriesChart
+            data={formattedTimeseries}
+            xKey="timestamp"
+            yKeys={["efficiencyScore"]}
+            title="Efficiency Score Trend"
+            height={200}
+          />
+        </>
+      )}
+
+      {/* Gap 6: Downtime Alert Log (IoT) */}
+      {source === "iot" && downtimeLog && downtimeLog.length > 0 && (
+        <DataTable
+          data={downtimeLog}
+          columns={downtimeColumns}
+          title={`Downtime & Maintenance Alerts (${downtimeLog.length} events)`}
+        />
+      )}
+
       {/* Risk Table */}
       {riskData && (
         <DataTable
@@ -285,6 +387,11 @@ export default function MachineDashboard() {
           columns={riskColumns}
           title={`Machine Risk Assessment (top 15 of ${riskData.length})`}
         />
+      )}
+
+      {/* Gap 7: Correlation Heatmap (harmonized view) */}
+      {source === "harmonized" && correlations && (
+        <CorrelationHeatmap data={correlations} title="Cross-Dataset Metric Correlations (6G vs Operational)" />
       )}
 
       {/* Harmonized View */}

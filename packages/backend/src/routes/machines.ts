@@ -5,6 +5,9 @@ import {
   getMachinesTimeseries,
   getMachinesRisk,
   getHarmonizedMachines,
+  getMachinesEfficiencyDistribution,
+  getMachinesDowntimeLog,
+  getMachinesCorrelations,
 } from "../db/queries/machines.js";
 
 const machines = new Hono();
@@ -33,6 +36,21 @@ machines.get("/risk", async (c) => {
 
 machines.get("/harmonized", async (c) => {
   const result = await getHarmonizedMachines();
+  return c.json(result);
+});
+
+machines.get("/efficiency-distribution", async (c) => {
+  const result = await getMachinesEfficiencyDistribution();
+  return c.json(result);
+});
+
+machines.get("/downtime-log", async (c) => {
+  const result = await getMachinesDowntimeLog();
+  return c.json(result);
+});
+
+machines.get("/correlations", async (c) => {
+  const result = await getMachinesCorrelations();
   return c.json(result);
 });
 

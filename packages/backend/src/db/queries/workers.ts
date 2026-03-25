@@ -188,3 +188,82 @@ export async function getWorkersAttrition(params: WorkersQueryParams) {
     cumulative: Number(r.cumulative),
   }));
 }
+
+// Gap 1: Efficacy accuracy — compare actual_efficacy_h vs recorded_efficacy
+export async function getWorkersEfficacyAccuracy(params: WorkersQueryParams) {
+  const where = buildWhereClause(params);
+  const baseFilter = `WHERE actual_efficacy_h IS NOT NULL AND actual_efficacy_h != 'None'
+    AND recorded_efficacy IS NOT NULL AND recorded_efficacy != 'None'`;
+  const fullWhere = where
+    ? baseFilter + " AND " + where.replace("WHERE ", "")
+    : baseFilter;
+
+  const [summary] = await query(`
+    SELECT
+      AVG(ABS(TRY_CAST(actual_efficacy_h AS DOUBLE) - TRY_CAST(recorded_efficacy AS DOUBLE))) AS mean_abs_error,
+      CORR(TRY_CAST(actual_efficacy_h AS DOUBLE), TRY_CAST(recorded_efficacy AS DOUBLE)) AS correlation,
+      AVG(TRY_CAST(actual_efficacy_h AS DOUBLE)) AS avg_actual,
+      AVG(TRY_CAST(recorded_efficacy AS DOUBLE)) AS avg_recorded,
+      COUNT(*) AS sample_count
+    FROM workers
+    ${fullWhere}
+  `);
+
+  // Distribution of (actual - recorded) bucketed
+  const distRows = await query(`
+    SELECT
+      CASE
+        WHEN diff < -0.5 THEN '< -0.5'
+        WHEN diff < -0.2 THEN '-0.5 to -0.2'
+        WHEN diff < -0.05 THEN '-0.2 to -0.05'
+        WHEN diff <= 0.05 THEN 'Accurate'
+        WHEN diff <= 0.2 THEN '0.05 to 0.2'
+        WHEN diff <= 0.5 THEN '0.2 to 0.5'
+        ELSE '> 0.5'
+      END AS bucket,
+      COUNT(*) AS count
+    FROM (
+      SELECT TRY_CAST(actual_efficacy_h AS DOUBLE) - TRY_CAST(recorded_efficacy AS DOUBLE) AS diff
+      FROM workers
+      ${fullWhere}
+    ) sub
+    GROUP BY bucket
+    ORDER BY MIN(diff)
+  `);
+
+  return {
+    meanAbsError: Math.round(Number(summary.mean_abs_error || 0) * 1000) / 1000,
+    correlation: Math.round(Number(summary.correlation || 0) * 1000) / 1000,
+    avgActual: Math.round(Number(summary.avg_actual || 0) * 1000) / 1000,
+    avgRecorded: Math.round(Number(summary.avg_recorded || 0) * 1000) / 1000,
+    sampleCount: Number(summary.sample_count),
+    distribution: distRows.map((r) => ({
+      bucket: String(r.bucket),
+      count: Number(r.count),
+    })),
+  };
+}
+
+// Gap 2: Attrition cause breakdown
+export async function getWorkersAttritionCauses(params: WorkersQueryParams) {
+  const where = buildWhereClause(params);
+  const baseFilter = `WHERE behav_comptype_h IN ('Resignation', 'Termination')
+    AND behav_cause_h IS NOT NULL AND behav_cause_h != 'None' AND behav_cause_h != ''`;
+  const fullWhere = where
+    ? baseFilter + " AND " + where.replace("WHERE ", "")
+    : baseFilter;
+
+  const rows = await query(`
+    SELECT behav_cause_h AS cause, behav_comptype_h AS event_type, COUNT(*) AS count
+    FROM workers
+    ${fullWhere}
+    GROUP BY behav_cause_h, behav_comptype_h
+    ORDER BY count DESC
+  `);
+
+  return rows.map((r) => ({
+    cause: String(r.cause),
+    eventType: String(r.event_type),
+    count: Number(r.count),
+  }));
+}

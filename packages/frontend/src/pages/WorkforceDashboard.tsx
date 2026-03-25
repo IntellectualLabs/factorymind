@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   useWorkersSummary,
   useWorkersTimeseries,
   useWorkersHeatmap,
   useWorkersAttrition,
+  useWorkersEfficacyAccuracy,
+  useWorkersAttritionCauses,
   type WorkerFilters,
 } from "@/api/client";
 import MetricCard from "@/components/shared/MetricCard";
@@ -12,7 +14,7 @@ import LoadingState from "@/components/shared/LoadingState";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart";
 import BarChart from "@/components/charts/BarChart";
 import HeatmapGrid from "@/components/charts/HeatmapGrid";
-import { Users, UserCheck, TrendingUp, UserMinus } from "lucide-react";
+import { Users, UserCheck, TrendingUp, UserMinus, Target } from "lucide-react";
 import { formatPercent } from "@/lib/utils";
 import {
   ResponsiveContainer,
@@ -46,6 +48,22 @@ export default function WorkforceDashboard() {
   });
   const { data: heatmap } = useWorkersHeatmap({ ...filters, metric: "attendance" });
   const { data: attrition } = useWorkersAttrition(filters);
+  const { data: efficacyAccuracy } = useWorkersEfficacyAccuracy(filters);
+  const { data: attritionCauses } = useWorkersAttritionCauses(filters);
+
+  // Pivot attrition causes for stacked bar chart
+  const attritionCausesData = useMemo(() => {
+    if (!attritionCauses) return [];
+    const byCause: Record<string, { cause: string; Resignation: number; Termination: number }> = {};
+    for (const entry of attritionCauses) {
+      if (!byCause[entry.cause]) {
+        byCause[entry.cause] = { cause: entry.cause, Resignation: 0, Termination: 0 };
+      }
+      if (entry.eventType === "Resignation") byCause[entry.cause].Resignation = entry.count;
+      if (entry.eventType === "Termination") byCause[entry.cause].Termination = entry.count;
+    }
+    return Object.values(byCause).sort((a, b) => (b.Resignation + b.Termination) - (a.Resignation + a.Termination));
+  }, [attritionCauses]);
 
   if (summaryLoading) return <LoadingState message="Loading workforce data..." />;
 
@@ -97,9 +115,9 @@ export default function WorkforceDashboard() {
         ]}
       />
 
-      {/* KPI Cards */}
+      {/* KPI Cards — 5 cards including Supervisor Accuracy */}
       {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <MetricCard
             label="Total Workers"
             value={summary.totalWorkers}
@@ -120,13 +138,61 @@ export default function WorkforceDashboard() {
             value={summary.attritionCount}
             icon={UserMinus}
           />
+          {efficacyAccuracy && (
+            <MetricCard
+              label="Supervisor Accuracy"
+              value={`${((1 - efficacyAccuracy.meanAbsError) * 100).toFixed(0)}%`}
+              icon={Target}
+              trend={{
+                value: Math.round(efficacyAccuracy.correlation * 100),
+                label: "correlation",
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Efficacy Accuracy: Actual vs Recorded Distribution (Gap 1) */}
+      {efficacyAccuracy && efficacyAccuracy.distribution.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <BarChart
+            data={efficacyAccuracy.distribution}
+            xKey="bucket"
+            yKeys={["count"]}
+            title="Supervisor Efficacy Error Distribution (Actual - Recorded)"
+            height={260}
+          />
+          <div className="bg-factory-card border border-factory-border rounded-xl p-5">
+            <h3 className="text-sm font-medium text-slate-300 mb-4">Efficacy Comparison</h3>
+            <div className="space-y-4 mt-6">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Avg Actual Efficacy</span>
+                <span className="text-lg font-mono text-emerald-400">{efficacyAccuracy.avgActual.toFixed(3)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Avg Recorded Efficacy</span>
+                <span className="text-lg font-mono text-blue-400">{efficacyAccuracy.avgRecorded.toFixed(3)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Mean Absolute Error</span>
+                <span className="text-lg font-mono text-amber-400">{efficacyAccuracy.meanAbsError.toFixed(3)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Correlation (r)</span>
+                <span className="text-lg font-mono text-primary-400">{efficacyAccuracy.correlation.toFixed(3)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Sample Size</span>
+                <span className="text-lg font-mono text-slate-300">{efficacyAccuracy.sampleCount.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Event Breakdown — split into Attendance donut + Special Events bars */}
       {summary && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Attendance ratio donut */}
           <div className="bg-factory-card border border-factory-border rounded-xl p-5">
             <h3 className="text-sm font-medium text-slate-300 mb-4">Attendance Ratio</h3>
             <ResponsiveContainer width="100%" height={220}>
@@ -160,8 +226,6 @@ export default function WorkforceDashboard() {
               {formatPercent(summary.attendanceRate)} attendance over the period
             </p>
           </div>
-
-          {/* Special events bar chart */}
           <BarChart
             data={specialEventsData}
             xKey="name"
@@ -172,7 +236,7 @@ export default function WorkforceDashboard() {
         </div>
       )}
 
-      {/* Weekly Trends — show Absence + special events (not Presence/Efficacy which are constant) */}
+      {/* Weekly Trends */}
       {timeseries && (
         <TimeSeriesChart
           data={timeseries}
@@ -188,7 +252,7 @@ export default function WorkforceDashboard() {
         <HeatmapGrid data={heatmap} title="Team Attendance Heatmap" colorScale="green" />
       )}
 
-      {/* Attrition Timeline — show resignations + terminations + cumulative */}
+      {/* Attrition Timeline */}
       {attrition && attrition.length > 0 && (
         <TimeSeriesChart
           data={attrition}
@@ -196,6 +260,18 @@ export default function WorkforceDashboard() {
           yKeys={["resignations", "terminations", "cumulative"]}
           title="Attrition Timeline"
           height={280}
+        />
+      )}
+
+      {/* Attrition Cause Breakdown (Gap 2) */}
+      {attritionCausesData.length > 0 && (
+        <BarChart
+          data={attritionCausesData}
+          xKey="cause"
+          yKeys={["Resignation", "Termination"]}
+          title="Attrition by Cause"
+          stacked
+          height={300}
         />
       )}
     </div>
