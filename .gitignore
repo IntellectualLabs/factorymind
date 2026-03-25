@@ -6,6 +6,8 @@ data/processed/
 
 # Data files (decompressed CSVs — regenerated from seed)
 data/*.csv
+data/*.db
+data/*.wal
 Demo 2026 - Lovable for Industry/
 # Seed files ARE tracked (data/seed/*.csv.gz)
 

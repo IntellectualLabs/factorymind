@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(__dirname, "../../../../data");
+const DB_PATH = path.join(DATA_DIR, "factorymind.db");
 
 let db: duckdb.Database | null = null;
 let conn: duckdb.Connection | null = null;
@@ -29,7 +30,7 @@ function allAsync(connection: duckdb.Connection, sql: string): Promise<Record<st
 export async function getConnection(): Promise<duckdb.Connection> {
   if (conn) return conn;
 
-  db = new duckdb.Database(":memory:");
+  db = new duckdb.Database(DB_PATH);
   conn = new duckdb.Connection(db);
 
   await ingestData(conn);
@@ -126,7 +127,29 @@ async function ingestData(connection: duckdb.Connection) {
     FROM iot
   `);
 
+  // Schedule work orders table (persisted across restarts)
+  console.log("Creating work_orders table...");
+  await runAsync(connection, `
+    CREATE TABLE IF NOT EXISTS work_orders (
+      id VARCHAR PRIMARY KEY,
+      week_start VARCHAR NOT NULL,
+      description VARCHAR NOT NULL,
+      crew_needed INTEGER NOT NULL,
+      machine_type VARCHAR NOT NULL,
+      priority VARCHAR NOT NULL,
+      assigned_team VARCHAR,
+      assigned_shift VARCHAR,
+      assigned_machine_id VARCHAR,
+      assigned_day VARCHAR
+    )
+  `);
+
   console.log("All data loaded successfully.");
+}
+
+export async function run(sql: string): Promise<void> {
+  const connection = await getConnection();
+  return runAsync(connection, sql);
 }
 
 export async function query(sql: string): Promise<Record<string, unknown>[]> {

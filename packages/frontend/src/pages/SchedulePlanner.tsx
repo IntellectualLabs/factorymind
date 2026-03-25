@@ -255,14 +255,29 @@ interface PendingAssignment {
 
 type SortMode = "priority" | "crew" | "type";
 
+function loadPref<T>(key: string, fallback: T): T {
+  try {
+    const v = localStorage.getItem(`scheduler.${key}`);
+    return v ? (JSON.parse(v) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function savePref(key: string, value: unknown) {
+  try {
+    localStorage.setItem(`scheduler.${key}`, JSON.stringify(value));
+  } catch { /* ignore quota errors */ }
+}
+
 export default function SchedulePlanner() {
   const [weekStart, setWeekStart] = useState(() => computeWeekStart(new Date()));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<ScheduleWarning[]>([]);
-  const [selectedTeam, setSelectedTeam] = useState("Team 1");
-  const [selectedShift, setSelectedShift] = useState("Shift 1");
+  const [selectedTeam, setSelectedTeam] = useState(() => loadPref("team", "Team 1"));
+  const [selectedShift, setSelectedShift] = useState(() => loadPref("shift", "Shift 1"));
   const [pendingAssignment, setPendingAssignment] = useState<PendingAssignment | null>(null);
-  const [sortMode, setSortMode] = useState<SortMode>("priority");
+  const [sortMode, setSortMode] = useState<SortMode>(() => loadPref("sort", "priority"));
   const [searchQuery, setSearchQuery] = useState("");
 
   const { data: predictions, isLoading: predsLoading } = useSchedulePredictions(weekStart);
@@ -520,7 +535,7 @@ export default function SchedulePlanner() {
         <div className="flex gap-3 items-center">
           <select
             value={selectedTeam}
-            onChange={(e) => setSelectedTeam(e.target.value)}
+            onChange={(e) => { setSelectedTeam(e.target.value); savePref("team", e.target.value); }}
             className="bg-slate-800 border border-factory-border rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             {Array.from({ length: 24 }, (_, i) => (
@@ -531,7 +546,7 @@ export default function SchedulePlanner() {
           </select>
           <select
             value={selectedShift}
-            onChange={(e) => setSelectedShift(e.target.value)}
+            onChange={(e) => { setSelectedShift(e.target.value); savePref("shift", e.target.value); }}
             className="bg-slate-800 border border-factory-border rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="Shift 1">Shift 1</option>
@@ -567,7 +582,7 @@ export default function SchedulePlanner() {
                 {(["priority", "crew", "type"] as const).map((mode) => (
                   <button
                     key={mode}
-                    onClick={() => setSortMode(mode)}
+                    onClick={() => { setSortMode(mode); savePref("sort", mode); }}
                     className={cn(
                       "text-[10px] px-2 py-1 rounded font-medium transition-colors",
                       sortMode === mode

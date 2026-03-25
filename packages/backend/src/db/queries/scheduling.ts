@@ -139,27 +139,71 @@ export function generateWeekPredictions(
   return { days };
 }
 
-// Mock work orders
-let orderCounter = 0;
-export function generateMockWorkOrders(weekStart: string) {
-  const types = ["Welding", "Assembly", "Quality Check", "Packaging", "Maintenance", "CNC Machining"];
-  const priorities = ["high", "medium", "low"] as const;
-  const orders = [];
+// Work order persistence via DuckDB
 
-  for (let i = 0; i < 20; i++) {
-    orderCounter++;
-    orders.push({
-      id: `WO-${String(orderCounter).padStart(4, "0")}`,
-      description: `${types[i % types.length]} - Batch ${100 + i}`,
-      crewNeeded: Math.floor(Math.random() * 8) + 3,
-      machineType: types[i % types.length],
-      priority: priorities[i % 3],
-      assignedTeam: null,
-      assignedShift: null,
-      assignedMachineId: null,
-      assignedDay: null,
-    });
+export async function getWorkOrders(weekStart: string) {
+  // Check if orders exist for this week
+  const existing = await query(
+    `SELECT id, description, crew_needed, machine_type, priority,
+            assigned_team, assigned_shift, assigned_machine_id, assigned_day
+     FROM work_orders WHERE week_start = '${weekStart.replace(/'/g, "''")}'
+     ORDER BY id`
+  );
+
+  if (existing.length > 0) {
+    return existing.map((r) => ({
+      id: String(r.id),
+      description: String(r.description),
+      crewNeeded: Number(r.crew_needed),
+      machineType: String(r.machine_type),
+      priority: String(r.priority) as "high" | "medium" | "low",
+      assignedTeam: r.assigned_team ? String(r.assigned_team) : null,
+      assignedShift: r.assigned_shift ? String(r.assigned_shift) : null,
+      assignedMachineId: r.assigned_machine_id ? String(r.assigned_machine_id) : null,
+      assignedDay: r.assigned_day ? String(r.assigned_day) : null,
+    }));
   }
 
-  return orders;
+  // Seed mock orders for this week
+  const types = ["Welding", "Assembly", "Quality Check", "Packaging", "Maintenance", "CNC Machining"];
+  const priorities = ["high", "medium", "low"] as const;
+  const safeWeek = weekStart.replace(/'/g, "''");
+
+  for (let i = 0; i < 20; i++) {
+    const id = `WO-${safeWeek.replace(/-/g, "")}-${String(i + 1).padStart(2, "0")}`;
+    const type = types[i % types.length];
+    const prio = priorities[i % 3];
+    // Deterministic crew based on index (not random — so restarts produce same data)
+    const crew = 3 + ((i * 7 + 5) % 8);
+    await query(
+      `INSERT INTO work_orders (id, week_start, description, crew_needed, machine_type, priority)
+       VALUES ('${id}', '${safeWeek}', '${type} - Batch ${100 + i}', ${crew}, '${type}', '${prio}')`
+    );
+  }
+
+  return getWorkOrders(weekStart); // Recurse once to read back
+}
+
+export async function assignWorkOrder(
+  orderId: string, team: string, shift: string, machineId: string, day: string
+) {
+  const safeId = orderId.replace(/'/g, "''");
+  await query(
+    `UPDATE work_orders SET
+       assigned_team = '${team.replace(/'/g, "''")}',
+       assigned_shift = '${shift.replace(/'/g, "''")}',
+       assigned_machine_id = '${machineId.replace(/'/g, "''")}',
+       assigned_day = '${day.replace(/'/g, "''")}'
+     WHERE id = '${safeId}'`
+  );
+}
+
+export async function unassignWorkOrder(orderId: string) {
+  const safeId = orderId.replace(/'/g, "''");
+  await query(
+    `UPDATE work_orders SET
+       assigned_team = NULL, assigned_shift = NULL,
+       assigned_machine_id = NULL, assigned_day = NULL
+     WHERE id = '${safeId}'`
+  );
 }

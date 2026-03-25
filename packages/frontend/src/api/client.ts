@@ -209,7 +209,28 @@ export function useAssignOrder() {
   return useMutation({
     mutationFn: (data: AssignRequest & { weekStart: string }) =>
       postJson<AssignResponse>("/schedule/assign", data),
-    onSuccess: (_, variables) => {
+    onMutate: async (variables) => {
+      const key = ["schedule", "orders", variables.weekStart];
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<ScheduleOrdersResponse>(key);
+      queryClient.setQueryData<ScheduleOrdersResponse>(key, (old) => {
+        if (!old) return old;
+        return {
+          orders: old.orders.map((o) =>
+            o.id === variables.orderId
+              ? { ...o, assignedTeam: variables.team, assignedShift: variables.shift, assignedMachineId: variables.machineId, assignedDay: variables.day }
+              : o
+          ),
+        };
+      });
+      return { previous };
+    },
+    onError: (_err, variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["schedule", "orders", variables.weekStart], context.previous);
+      }
+    },
+    onSettled: (_, __, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["schedule", "orders", variables.weekStart],
       });
@@ -222,7 +243,28 @@ export function useUnassignOrder() {
   return useMutation({
     mutationFn: (data: { orderId: string; weekStart: string }) =>
       postJson<{ success: boolean }>("/schedule/unassign", data),
-    onSuccess: (_, variables) => {
+    onMutate: async (variables) => {
+      const key = ["schedule", "orders", variables.weekStart];
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<ScheduleOrdersResponse>(key);
+      queryClient.setQueryData<ScheduleOrdersResponse>(key, (old) => {
+        if (!old) return old;
+        return {
+          orders: old.orders.map((o) =>
+            o.id === variables.orderId
+              ? { ...o, assignedTeam: null, assignedShift: null, assignedMachineId: null, assignedDay: null }
+              : o
+          ),
+        };
+      });
+      return { previous };
+    },
+    onError: (_err, variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["schedule", "orders", variables.weekStart], context.previous);
+      }
+    },
+    onSettled: (_, __, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["schedule", "orders", variables.weekStart],
       });

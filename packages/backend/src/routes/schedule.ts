@@ -1,28 +1,15 @@
 import { Hono } from "hono";
-import type { ScheduleWarning, WorkOrder } from "@factorymind/types";
+import type { ScheduleWarning } from "@factorymind/types";
 import {
   getAttendancePredictions,
   getMachineRiskPredictions,
   generateWeekPredictions,
-  generateMockWorkOrders,
+  getWorkOrders,
+  assignWorkOrder,
+  unassignWorkOrder,
 } from "../db/queries/scheduling.js";
 
 const schedule = new Hono();
-
-// In-memory store for work orders per week (capped at 10 weeks)
-const MAX_WEEKS = 10;
-const weeklyOrders = new Map<string, WorkOrder[]>();
-
-function getOrCreateOrders(weekStart: string): WorkOrder[] {
-  if (!weeklyOrders.has(weekStart)) {
-    if (weeklyOrders.size >= MAX_WEEKS) {
-      const oldest = weeklyOrders.keys().next().value!;
-      weeklyOrders.delete(oldest);
-    }
-    weeklyOrders.set(weekStart, generateMockWorkOrders(weekStart));
-  }
-  return weeklyOrders.get(weekStart)!;
-}
 
 schedule.get("/predictions", async (c) => {
   const weekStart = c.req.query("weekStart") || new Date().toISOString().split("T")[0];
@@ -36,7 +23,8 @@ schedule.get("/predictions", async (c) => {
 
 schedule.get("/orders", async (c) => {
   const weekStart = c.req.query("weekStart") || new Date().toISOString().split("T")[0];
-  return c.json({ orders: getOrCreateOrders(weekStart) });
+  const orders = await getWorkOrders(weekStart);
+  return c.json({ orders });
 });
 
 schedule.post("/assign", async (c) => {
@@ -51,8 +39,8 @@ schedule.post("/assign", async (c) => {
     return c.json({ error: "Missing required fields: orderId, team, shift, machineId, day, weekStart" }, 400);
   }
 
-  const orders = getOrCreateOrders(body.weekStart);
-
+  // Verify order exists
+  const orders = await getWorkOrders(body.weekStart);
   const order = orders.find((o) => o.id === body.orderId);
   if (!order) {
     return c.json({ error: "Order not found" }, 404);
@@ -97,11 +85,8 @@ schedule.post("/assign", async (c) => {
     });
   }
 
-  // Apply assignment
-  order.assignedTeam = body.team;
-  order.assignedShift = body.shift;
-  order.assignedMachineId = body.machineId;
-  order.assignedDay = body.day;
+  // Persist assignment to DuckDB
+  await assignWorkOrder(body.orderId, body.team, body.shift, body.machineId, body.day);
 
   return c.json({ success: true, warnings });
 });
@@ -118,17 +103,7 @@ schedule.post("/unassign", async (c) => {
     return c.json({ error: "Missing required fields: orderId, weekStart" }, 400);
   }
 
-  const orders = getOrCreateOrders(body.weekStart);
-  const order = orders.find((o) => o.id === body.orderId);
-  if (!order) {
-    return c.json({ error: "Order not found" }, 404);
-  }
-
-  order.assignedTeam = null;
-  order.assignedShift = null;
-  order.assignedMachineId = null;
-  order.assignedDay = null;
-
+  await unassignWorkOrder(body.orderId);
   return c.json({ success: true });
 });
 
