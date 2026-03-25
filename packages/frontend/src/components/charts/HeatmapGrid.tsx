@@ -63,10 +63,9 @@ export default function HeatmapGrid({
   title,
   colorScale = "green",
 }: HeatmapGridProps) {
-  if (!data.length) return null;
-
   // Aggregate to weekly and take last 16 weeks for readability
   const processedData = useMemo(() => {
+    if (!data.length) return [];
     return data.slice(0, 24).map((row) => ({
       ...row,
       values: aggregateWeekly(row.values).slice(-16),
@@ -75,6 +74,8 @@ export default function HeatmapGrid({
 
   const dates = processedData[0]?.values.map((v) => v.date) || [];
   const colCount = dates.length;
+
+  if (!processedData.length) return null;
 
   return (
     <div className="bg-factory-card border border-factory-border rounded-xl p-5 overflow-auto">

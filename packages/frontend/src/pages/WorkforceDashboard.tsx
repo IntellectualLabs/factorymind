@@ -34,15 +34,6 @@ const SHIFTS = [
   { label: "Shift 3", value: "Shift 3" },
 ];
 
-const SPECIAL_EVENT_COLORS: Record<string, string> = {
-  Feat: "#22c55e",
-  Slip: "#ef4444",
-  Idea: "#3b82f6",
-  Lapse: "#f59e0b",
-  Resignation: "#ec4899",
-  Termination: "#8b5cf6",
-};
-
 const ATTENDANCE_COLORS = ["#22c55e", "#ef4444"];
 
 export default function WorkforceDashboard() {

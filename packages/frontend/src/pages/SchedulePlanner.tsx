@@ -168,17 +168,25 @@ export default function SchedulePlanner() {
       const dropData = over.data.current as { day: string; team: string; shift: string } | undefined;
       if (!dropData) return;
 
-      const result = await assignMutation.mutateAsync({
-        orderId: String(active.id),
-        team: dropData.team,
-        shift: dropData.shift,
-        machineId: "auto",
-        day: dropData.day,
-        weekStart,
-      });
+      try {
+        const result = await assignMutation.mutateAsync({
+          orderId: String(active.id),
+          team: dropData.team,
+          shift: dropData.shift,
+          machineId: "auto",
+          day: dropData.day,
+          weekStart,
+        });
 
-      if (result.warnings.length > 0) {
-        setWarnings((prev) => [...prev, ...result.warnings]);
+        if (result.warnings.length > 0) {
+          setWarnings((prev) => [...prev, ...result.warnings]);
+          setTimeout(() => setWarnings([]), 5000);
+        }
+      } catch {
+        setWarnings((prev) => [
+          ...prev,
+          { type: "capacity_exceeded" as const, severity: "error" as const, message: "Failed to assign work order. Please try again." },
+        ]);
         setTimeout(() => setWarnings([]), 5000);
       }
     },

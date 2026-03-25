@@ -12,8 +12,8 @@ const app = new Hono();
 app.use("/*", cors({ origin: ["http://localhost:5173", "http://localhost:3000"] }));
 
 app.onError((err, c) => {
-  console.error(`[${c.req.method} ${c.req.path}]`, err.message);
-  return c.json({ error: err.message }, 500);
+  console.error(`[${c.req.method} ${c.req.path}]`, err);
+  return c.json({ error: "Internal server error" }, 500);
 });
 
 app.route("/api/health", health);

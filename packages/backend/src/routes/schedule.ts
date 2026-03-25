@@ -9,8 +9,20 @@ import {
 
 const schedule = new Hono();
 
-// In-memory store for work orders per week
+// In-memory store for work orders per week (capped at 10 weeks)
+const MAX_WEEKS = 10;
 const weeklyOrders = new Map<string, WorkOrder[]>();
+
+function getOrCreateOrders(weekStart: string): WorkOrder[] {
+  if (!weeklyOrders.has(weekStart)) {
+    if (weeklyOrders.size >= MAX_WEEKS) {
+      const oldest = weeklyOrders.keys().next().value!;
+      weeklyOrders.delete(oldest);
+    }
+    weeklyOrders.set(weekStart, generateMockWorkOrders(weekStart));
+  }
+  return weeklyOrders.get(weekStart)!;
+}
 
 schedule.get("/predictions", async (c) => {
   const weekStart = c.req.query("weekStart") || new Date().toISOString().split("T")[0];
@@ -24,10 +36,7 @@ schedule.get("/predictions", async (c) => {
 
 schedule.get("/orders", async (c) => {
   const weekStart = c.req.query("weekStart") || new Date().toISOString().split("T")[0];
-  if (!weeklyOrders.has(weekStart)) {
-    weeklyOrders.set(weekStart, generateMockWorkOrders(weekStart));
-  }
-  return c.json({ orders: weeklyOrders.get(weekStart) });
+  return c.json({ orders: getOrCreateOrders(weekStart) });
 });
 
 schedule.post("/assign", async (c) => {
@@ -40,10 +49,7 @@ schedule.post("/assign", async (c) => {
     weekStart: string;
   }>();
 
-  const orders = weeklyOrders.get(body.weekStart);
-  if (!orders) {
-    return c.json({ error: "Week not initialized" }, 400);
-  }
+  const orders = getOrCreateOrders(body.weekStart);
 
   const order = orders.find((o) => o.id === body.orderId);
   if (!order) {
